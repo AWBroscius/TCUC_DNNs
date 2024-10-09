@@ -60,22 +60,22 @@ Path(pathP).mkdir(parents=True, exist_ok=True)
 
 # Create a class for model structure in torch
 class TorchModel(nn.Module):
-    def __init__(self, seq_len, input_size, num_layers):
+    def __init__(self, seq_len, num_lines, num_layers):
         super(TorchModel, self).__init__()
         # dataset dependencies:
-        self.input_size = input_size
+        self.num_lines = num_lines
         self.seq_length = seq_len
         self.num_layers = num_layers
 
         # LSTM layer 1
-        self.lstm_1 = nn.LSTM(input_size=input_size, hidden_size=1000, batch_first=True)
+        self.lstm_1 = nn.LSTM(input_size=num_lines, hidden_size=1000, batch_first=True)
         # LSTM layer 2
         self.lstm_2 = nn.LSTM(input_size=1000, hidden_size=500, batch_first=True)
         # Rest of the Neural Net
         self.fc_1 = nn.Linear(500, 3000)
         self.fc_2 = nn.Linear(3000, 1000)
         self.fc_3 = nn.Linear(1000, 3000)
-        self.op_layer = nn.Linear(3000, 24 * input_size)
+        self.op_layer = nn.Linear(3000, 24 * num_lines)
 
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
@@ -105,13 +105,13 @@ class TorchModel(nn.Module):
 
 # Define model hyperparameters
 seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
-input_size = Time_series_X_train.shape[2]  # number of features in 1 sample
+num_lines = Time_series_X_train.shape[2]  # number of features in 1 sample
 # 1 sample = num timestamps x num features(power lines)
 num_epochs = int(sys.argv[2])
 learning_rate = 0.001
 
 # Instantiate the model
-torchmodel = TorchModel(input_size=input_size, seq_len=seq_len, num_layers=1)
+torchmodel = TorchModel(input_size=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
 
@@ -204,7 +204,7 @@ for i in range(1, len(pred_0_hr)):
                 new_temp.append(temp_np[count_reshape_r, 0])
 
                 for count_reshape_c in range(1, temp_np.shape[1]):
-                    if ((count_reshape_c) % 120) == 0:
+                    if ((count_reshape_c) % num_lines) == 0:
                         new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                         new_temp_1.append(new_temp)
                         new_temp = []
@@ -226,7 +226,7 @@ for i in range(1, len(pred_0_hr)):
             new_temp.append(temp_np[count_reshape_r, 0])
 
             for count_reshape_c in range(1, temp_np.shape[1]):
-                if ((count_reshape_c) % 120) == 0:
+                if ((count_reshape_c) % num_lines) == 0:
                     new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                     new_temp_1.append(new_temp)
                     new_temp = []
@@ -281,11 +281,11 @@ df_cm.rename(columns={0: 'True_Positive'}, inplace='True')
 df_cm.insert(loc=1, column='True_Negative', value=tn_arr)
 df_cm.insert(loc=2, column='False_Positive', value=fp_arr)
 df_cm.insert(loc=3, column='False_Negative', value=fn_arr)
-lines = np.linspace(1, 120, num=120)
+lines = np.linspace(1, num_lines, num=num_lines)
 lines_arr = np.tile(lines, 24)
 df_cm.insert(loc=0, column='Line_No', value=lines_arr)
 hour = np.linspace(1, 24, num=24)
-hour_arr = np.repeat(hour, 120)
+hour_arr = np.repeat(hour, num_lines)
 df_cm.insert(loc=1, column='Hour', value=hour_arr)
 file_name = os.path.join(path, 'confusion_matrix.csv')
 df_cm.to_csv(file_name)
