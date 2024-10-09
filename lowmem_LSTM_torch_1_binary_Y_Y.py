@@ -8,7 +8,6 @@ Modified on Mon Sept 9 by awb9691
 import os
 import torch
 import sys
-import time
 from torch import nn
 from torch.autograd import Variable
 import numpy as np
@@ -62,26 +61,26 @@ Path(pathP).mkdir(parents=True, exist_ok=True)
 class TorchModel(nn.Module):
     def __init__(self, seq_len, input_size, num_layers):
         super(TorchModel, self).__init__()
-        # dataset dependencies:
         self.input_size = input_size
         self.seq_length = seq_len
         self.num_layers = num_layers
 
-        # LSTM layer 1
         self.lstm_1 = nn.LSTM(input_size=input_size, hidden_size=1000, batch_first=True)
-        # LSTM layer 2
         self.lstm_2 = nn.LSTM(input_size=1000, hidden_size=500, batch_first=True)
-        # Rest of the Neural Net
         self.fc_1 = nn.Linear(500, 3000)
         self.fc_2 = nn.Linear(3000, 1000)
         self.fc_3 = nn.Linear(1000, 3000)
-        self.op_layer = nn.Linear(3000, 24 * input_size)
+        self.op_layer = nn.Linear(3000, 2880)
 
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        h_0 = Variable(torch.zeros(self.num_layers, x.shape[0], 1000)).to(device)  # hidden state
+        c_0 = Variable(torch.zeros(self.num_layers, x.shape[0], 1000)).to(device)  # internal state
+        h_1 = Variable(torch.zeros(self.num_layers, x.shape[0], 500)).to(device)  # hidden state
+        c_1 = Variable(torch.zeros(self.num_layers, x.shape[0], 500)).to(device)  # internal state
 
         # Propagate input through LSTM
         output, (hn, cn) = self.lstm_1(x)  # first lstm layer
@@ -107,7 +106,7 @@ class TorchModel(nn.Module):
 seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
 input_size = Time_series_X_train.shape[2]  # number of features in 1 sample
 # 1 sample = num timestamps x num features(power lines)
-num_epochs = int(sys.argv[2])
+num_epochs = 4
 learning_rate = 0.001
 
 # Instantiate the model
@@ -126,10 +125,8 @@ optimizer = torch.optim.Adam(torchmodel.parameters(),
 # Training!!
 train_loss_hist = []
 test_loss_hist = []
-epoch_times = []
 predictions = 0
 for epoch in range(num_epochs):
-    t0 = time.perf_counter()
     # Train on the Training Set:
     torchmodel.train()
     outputs = torchmodel.forward(Time_series_X_train)  # forward pass
@@ -151,21 +148,12 @@ for epoch in range(num_epochs):
             # save testing predictions
             predictions = pred
 
-    t1 = time.perf_counter()
-    elapsed_time = t1-t0
-    epoch_times.append(elapsed_time)
-
     print("Epoch: %d, Train loss: %1.5f" % (epoch, loss.item()))
     print("\t Test loss: %1.5f" % test_loss)
-    print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
 
 # Saving model
 torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs)))
 np.save(os.path.join(pathM, 'train_history_LSTM_model.npy'), train_loss_hist, allow_pickle=True)
-
-# Report time
-avg_time = sum(epoch_times) / len(epoch_times)
-print(f"Average time per epoch: {avg_time:0.4f} seconds")
 
 # Plot the Loss History
 plt.plot(train_loss_hist)
