@@ -24,12 +24,22 @@ print("GPU available? (pytorch):", torch.cuda.is_available())
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Using device: ", device)
 
+"""
+Command line inputs:
+1) datapath (str) - path to directory containing all .npy data files for model
+2) modelname (str) - name of directory to store outputs in ./outputs_from_models/
+3) num_epochs (int) - the number of epochs to train for
+"""
+
 
 # Load in data
-Time_series_X_train = torch.tensor(np.load(r'T_s_X_train.npy'), dtype=torch.float32).to(device)
-Time_series_Y_train = torch.tensor(np.load(r'T_s_Y_train_flattened.npy'), dtype=torch.float32).to(device)
-Time_series_X_test = torch.tensor(np.load(r'T_s_X_test.npy'), dtype=torch.float32).to(device)
-Time_series_Y_test = torch.tensor(np.load(r'T_s_Y_test_flattened.npy'), dtype=torch.float32).to(device)
+
+datapath = sys.argv[1]
+
+Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy')), dtype=torch.float32).to(device)
+Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')), dtype=torch.float32).to(device)
+Time_series_X_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_test.npy')), dtype=torch.float32).to(device)
+Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(device)
 
 
 # Check data shape
@@ -44,7 +54,7 @@ print(Time_series_Y_train.shape)
 root = "."
 parent_dir = "outputs_from_models"
 path = os.path.join(root, parent_dir)
-directory = sys.argv[1]   # name of trial run
+directory = sys.argv[2]   # name of trial run
 path = os.path.join(path, directory)
 Path(path).mkdir(parents=True, exist_ok=True)
 print("Directory '% s' created" % directory)
@@ -103,17 +113,30 @@ class TorchModel(nn.Module):
         return out
 
 
+def checkpoint(model, filename):
+    checkpath = os.path.join(pathM, filename)
+    torch.save(model.state_dict(), checkpath)
+
+
+def resume(model, filename):
+    checkpath = os.path.join(pathM, filename)
+    model.load_state_dict(torch.load(checkpath))
+
 # Define model hyperparameters
 seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
 num_lines = Time_series_X_train.shape[2]  # number of features in 1 sample
 # 1 sample = num timestamps x num features(power lines)
-num_epochs = int(sys.argv[2])
+num_epochs = int(sys.argv[3])
 learning_rate = 0.001
 
 # Instantiate the model
-torchmodel = TorchModel(input_size=num_lines, seq_len=seq_len, num_layers=1)
+torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
+
+if sys.argv[4]:
+    print("Resuming training from: ", sys.argv[4])
+    resume(torchmodel, sys.argv[4])
 
 # Define the loss function and optimizer
 criterion = torch.nn.MSELoss()  # mean squared error
@@ -158,6 +181,8 @@ for epoch in range(num_epochs):
     print("Epoch: %d, Train loss: %1.5f" % (epoch, loss.item()))
     print("\t Test loss: %1.5f" % test_loss)
     print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
+    if epoch % 2 == 0: # every other epoch
+        checkpoint(torchmodel, f"epoch-{epoch}.pth")
 
 # Saving model
 torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs)))
@@ -180,7 +205,7 @@ plt.savefig(os.path.join(pathP, 'loss_history.png'))
 predictions[predictions <= 0.3333] = 0
 predictions[predictions > 0.3333] = 1
 pred = predictions
-idx_y = np.load('y_test_idx.npy')  # day and hour indices
+idx_y = np.load(os.path.join(datapath, 'y_test_idx.npy'))  # day and hour indices
 df = pd.DataFrame(pred)
 df.insert(loc=0, column='day', value=idx_y[:, 0])
 
@@ -304,7 +329,7 @@ print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'False_Negative'])
 print("No of times")
 print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'Line_No'])
 
-Y_percentage_test = np.load('T_s_Y_test_flattened.npy')
+Y_percentage_test = np.load(os.path.join(datapath, 'T_s_Y_test_flattened.npy'))
 
 indices = np.where(mat_2 == 1)
 
