@@ -136,7 +136,7 @@ torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
 
-if sys.argv[4]:  # a file to resume from has been given
+if len(sys.argv) > 4:  # a file to resume from has been given
     print("Resuming training from: ", sys.argv[4])
     # assume resume file is in format "epoch-##.pth"
     cur_epoch = int(sys.argv[5])
@@ -193,7 +193,8 @@ for epoch in range(num_epochs):
         checkpoint(torchmodel, f"epoch-{epoch+cur_epoch}.pth")
 
 # Saving model
-torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs+cur_epoch)))
+final_epoch = num_epochs + cur_epoch
+torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % final_epoch)))
 np.save(os.path.join(pathM, 'train_history_LSTM_model.npy'), train_loss_hist, allow_pickle=True)
 
 # Report time
