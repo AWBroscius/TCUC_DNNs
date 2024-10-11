@@ -29,6 +29,8 @@ Command line inputs:
 1) datapath (str) - path to directory containing all .npy data files for model
 2) modelname (str) - name of directory to store outputs in ./outputs_from_models/
 3) num_epochs (int) - the number of epochs to train for
+4) resume_name (str) - the filename to resume from in /outputs_from_models/<modelname>/model/
+5) resume_num (int) - epoch number that (4) is picking up from 
 """
 
 
@@ -36,8 +38,8 @@ Command line inputs:
 
 datapath = sys.argv[1]
 
-Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy')), dtype=torch.float32).to(device)
-Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')), dtype=torch.float32).to(device)
+Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy'))[0:100], dtype=torch.float32).to(device)
+Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy'))[0:100], dtype=torch.float32).to(device)
 Time_series_X_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_test.npy')), dtype=torch.float32).to(device)
 Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(device)
 
@@ -134,17 +136,23 @@ torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
 
-if sys.argv[4]:
+if sys.argv[4]:  # a file to resume from has been given
     print("Resuming training from: ", sys.argv[4])
+    # assume resume file is in format "epoch-##.pth"
+    cur_epoch = int(sys.argv[5])
+    print("The current epoch is: ", cur_epoch)
+
+    num_epochs = num_epochs - cur_epoch  # adjust epoch number to avoid file overwrites
     resume(torchmodel, sys.argv[4])
+else:
+    cur_epoch = 0
 
 # Define the loss function and optimizer
 criterion = torch.nn.MSELoss()  # mean squared error
 optimizer = torch.optim.Adam(torchmodel.parameters(),
                              lr=learning_rate,
                              betas=(0.9, 0.99),
-                             eps=1e-07,
-                             )
+                             eps=1e-07)
 
 # Training!!
 train_loss_hist = []
@@ -181,11 +189,11 @@ for epoch in range(num_epochs):
     print("Epoch: %d, Train loss: %1.5f" % (epoch, loss.item()))
     print("\t Test loss: %1.5f" % test_loss)
     print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
-    if epoch % 2 == 0: # every other epoch
-        checkpoint(torchmodel, f"epoch-{epoch}.pth")
+    if (epoch % 2 == 0) or (epoch == num_epochs):  # every other epoch, and final
+        checkpoint(torchmodel, f"epoch-{epoch+cur_epoch}.pth")
 
 # Saving model
-torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs)))
+torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs+cur_epoch)))
 np.save(os.path.join(pathM, 'train_history_LSTM_model.npy'), train_loss_hist, allow_pickle=True)
 
 # Report time
