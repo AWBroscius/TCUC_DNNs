@@ -38,8 +38,8 @@ Command line inputs:
 
 datapath = sys.argv[1]
 
-Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy'))[0:100], dtype=torch.float32).to(device)
-Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy'))[0:100], dtype=torch.float32).to(device)
+Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy')), dtype=torch.float32).to(device)
+Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')), dtype=torch.float32).to(device)
 Time_series_X_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_test.npy')), dtype=torch.float32).to(device)
 Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(device)
 
@@ -129,7 +129,7 @@ seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
 num_lines = Time_series_X_train.shape[2]  # number of features in 1 sample
 # 1 sample = num timestamps x num features(power lines)
 num_epochs = int(sys.argv[3])
-learning_rate = 0.001
+learning_rate = 0.0001 # changed from 2 to 3 zeroes
 
 # Instantiate the model
 torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
@@ -190,10 +190,10 @@ for epoch in range(num_epochs):
     print("\t Test loss: %1.5f" % test_loss)
     print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
     if (epoch % 2 == 0) or (epoch == num_epochs):  # every other epoch, and final
-        checkpoint(torchmodel, f"epoch-{epoch+cur_epoch}.pth")
+        checkpoint(torchmodel, f"epoch-{int(epoch+cur_epoch)}.pth")
 
 # Saving model
-final_epoch = num_epochs + cur_epoch
+final_epoch = int(num_epochs) + int(cur_epoch)
 torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % final_epoch)))
 np.save(os.path.join(pathM, 'train_history_LSTM_model.npy'), train_loss_hist, allow_pickle=True)
 
