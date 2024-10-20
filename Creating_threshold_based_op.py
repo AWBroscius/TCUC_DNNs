@@ -44,6 +44,9 @@ Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_fl
     device)
 idx_y = np.load(os.path.join(datapath, 'y_test_idx.npy'))
 
+seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
+num_lines = Time_series_X_train.shape[2]  # number of lines in 1 sample
+
 
 # boot up model from saved training
 seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
@@ -162,7 +165,7 @@ for threshold_inst in threshold:
                     new_temp.append(temp_np[count_reshape_r, 0])
 
                     for count_reshape_c in range(1, temp_np.shape[1]):
-                        if ((count_reshape_c) % 120) == 0:
+                        if ((count_reshape_c) % num_lines) == 0:
                             new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                             new_temp_1.append(new_temp)
                             new_temp = []
@@ -185,7 +188,7 @@ for threshold_inst in threshold:
                 new_temp.append(temp_np[count_reshape_r, 0])
 
                 for count_reshape_c in range(1, temp_np.shape[1]):
-                    if ((count_reshape_c) % 120) == 0:
+                    if ((count_reshape_c) % num_lines) == 0:
                         new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                         new_temp_1.append(new_temp)
                         new_temp = []
@@ -237,11 +240,11 @@ for threshold_inst in threshold:
     df_cm.insert(loc=1, column='True_Negative', value=tn_arr)
     df_cm.insert(loc=2, column='False_Positive', value=fp_arr)
     df_cm.insert(loc=3, column='False_Negative', value=fn_arr)
-    lines = np.linspace(1, 120, num=120)
+    lines = np.linspace(1, num_lines, num=num_lines)
     lines_arr = np.tile(lines, 24)
     df_cm.insert(loc=0, column='Line_No', value=lines_arr)
     hour = np.linspace(1, 24, num=24)
-    hour_arr = np.repeat(hour, 120)
+    hour_arr = np.repeat(hour, num_lines)
     df_cm.insert(loc=1, column='Hour', value=hour_arr)
 
     conf_matrix = os.path.join(pathX, 'confusion_matrix.csv')
