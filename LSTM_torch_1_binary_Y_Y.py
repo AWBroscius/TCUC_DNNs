@@ -138,14 +138,22 @@ print(torchmodel)
 
 if len(sys.argv) > 4:  # a file to resume from has been given
     print("Resuming training from: ", sys.argv[4])
-    # assume resume file is in format "epoch-##.pth"
+
+    # load weights
     cur_epoch = int(sys.argv[5])
     print("The current epoch is: ", cur_epoch)
 
+    # adjust epoch number
     num_epochs = num_epochs - cur_epoch  # adjust epoch number to avoid file overwrites
     resume(torchmodel, sys.argv[4])
+
+    # load loss history
+    train_loss_hist = np.load(os.path.join(pathM, f'loss_hist_train_epoch_{int(cur_epoch)}.npy')).tolist()
+    test_loss_hist = np.load(os.path.join(pathM, f'loss_hist_test_epoch_{int(cur_epoch)}.npy')).tolist()
 else:
     cur_epoch = 0
+    train_loss_hist = []
+    test_loss_hist = []
 
 # Define the loss function and optimizer
 criterion = torch.nn.MSELoss()  # mean squared error
@@ -155,8 +163,7 @@ optimizer = torch.optim.Adam(torchmodel.parameters(),
                              eps=1e-07)
 
 # Training!!
-train_loss_hist = []
-test_loss_hist = []
+
 epoch_times = []
 predictions = 0
 for epoch in range(num_epochs):
@@ -190,7 +197,14 @@ for epoch in range(num_epochs):
     print("\t Test loss: %1.5f" % test_loss)
     print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
     if (epoch % 2 == 0) or (epoch == num_epochs):  # every other epoch, and final
+        # save weights
         checkpoint(torchmodel, f"epoch-{int(epoch+cur_epoch)}.pth")
+
+        # save training history
+        np.save(os.path.join(pathM, f'loss_hist_train_epoch_{int(epoch+cur_epoch)}.npy'),
+                train_loss_hist, allow_pickle=True)
+        np.save(os.path.join(pathM, f'loss_hist_test_epoch_{int(epoch+cur_epoch)}.npy'),
+                test_loss_hist, allow_pickle=True)
 
 # Saving model
 final_epoch = int(num_epochs) + int(cur_epoch)
