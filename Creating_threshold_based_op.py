@@ -5,23 +5,17 @@ Created on Wed Nov 16 22:39:21 2022
 @author: farha
 @author: Abigail Broscius awb9691@rit.edu
 """
-import numpy as np
-import matplotlib.pyplot as pltd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import OrdinalEncoder
 import pandas as pd
-import torch
 import os
 import sys
 import torch
-import time
 from torch import nn
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OrdinalEncoder
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-from pathlib import Path
-# from LSTM_torch_1_binary_Y_Y import TorchModel
-
 
 """
 Command line inputs:
@@ -31,7 +25,7 @@ Command line inputs:
 """
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print("Using device: ", device)
+print(f"Using device: {device} \n")
 
 
 modelname = sys.argv[2]
@@ -103,16 +97,16 @@ class TorchModel(nn.Module):
 
 def resume(model, filename):
     checkpath = os.path.join(location, 'model', filename)
-    model.load_state_dict(torch.load(checkpath))
+    model.load_state_dict(torch.load(checkpath, weights_only=True))
 
 # Instantiate the model
 torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
 
-print("Using model from: ", sys.argv[3])
+print("\n Using model from: ", sys.argv[3])
 # assume resume file is in format "epoch-##.pth"
-resume(torchmodel, sys.argv[3])
+resume(torchmodel, sys.argv[3],)
 
 # Define the loss function and optimizer
 criterion = torch.nn.MSELoss()  # mean squared error
@@ -128,6 +122,8 @@ predictions = torchmodel(Time_series_X_test)
 
 threshold = [0.10, 0.20, 0.30, 0.33, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
 for threshold_inst in threshold:
+    print("THRESHOLD = ", threshold_inst)
+
     # create storage directories for each thresholding value
     threshDir = str(threshold_inst) + "Testing_data"
     pathX = os.path.join(location, threshDir)
@@ -135,12 +131,14 @@ for threshold_inst in threshold:
     pathP = os.path.join(pathX, 'plots')
     os.makedirs(pathP, exist_ok=True)
 
-    pred = predictions
+    pred = np.copy(predictions.detach().numpy())
+    print(f"Before threshold {threshold_inst}: \n:", pred)
     pred[pred <= threshold_inst] = 0
     pred[pred > threshold_inst] = 1
+    print("After threshold: \n", pred)
 
     # pred=y_pred_r.numpy()
-    pred = pred.detach().numpy()
+    # pred = pred.detach().numpy()
     df = pd.DataFrame(pred)
     df.insert(loc=0, column='day', value=idx_y[:, 0])
 
@@ -216,21 +214,21 @@ for threshold_inst in threshold:
     Time_series_Y_test[Time_series_Y_test > threshold_inst] = 1
 
     total_positive = np.count_nonzero(Time_series_Y_test == 1)
-    total_negative = np.sum(Time_series_Y_test == 0)
+    total_negative = np.count_nonzero(Time_series_Y_test == 0)
     pred_pos = np.count_nonzero(pred_t == 1)
-    pred_neg = np.sum(pred_t == 0)
+    pred_neg = np.count_nonzero(pred_t == 0)
 
     mat_1 = Time_series_Y_test + pred_t
-    tp = np.sum(mat_1 == 2)
-    tp_arr = np.sum(mat_1 == 2, 0)
-    tn = np.sum(mat_1 == 0)
-    tn_arr = np.sum(mat_1 == 0, 0)
+    tp = np.count_nonzero(mat_1 == 2)
+    tp_arr = np.count_nonzero(mat_1 == 2, axis=0)
+    tn = np.count_nonzero(mat_1 == 0)
+    tn_arr = np.count_nonzero(mat_1 == 0, axis=0)
 
     mat_2 = Time_series_Y_test - pred_t
-    fn = np.sum(mat_2 == 1)
-    fn_arr = np.sum(mat_2 == 1, 0)
-    fp = np.sum(mat_2 == -1)
-    fp_arr = np.sum(mat_2 == -1, 0)
+    fn = np.count_nonzero(mat_2 == 1)
+    fn_arr = np.count_nonzero(mat_2 == 1, 0)
+    fp = np.count_nonzero(mat_2 == -1)
+    fp_arr = np.count_nonzero(mat_2 == -1, 0)
 
     # Writing Confusion Matrixs Test
     df_cm = pd.DataFrame(tp_arr.T)
@@ -247,30 +245,25 @@ for threshold_inst in threshold:
     df_cm.insert(loc=1, column='Hour', value=hour_arr)
 
     conf_matrix = os.path.join(pathX, 'confusion_matrix.csv')
-    df_cm.to_csv(c)
+    df_cm.to_csv(conf_matrix)
     df_false_neg = df_cm.groupby(["Line_No"]).False_Negative.sum().reset_index()
 
     # Testing
     print('testing')
-    print('tp')
-    print(tp)
-    print('tn')
-    print(tn)
-    print('fp')
-    print(fp)
-    print('fn')
-    print(fn)
-    print('Most false neg line')
-    print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'False_Negative'])
-    print("No of times")
-    print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'Line_No'])
+    print(f'tp: {tp}')
+    print(f'tn: {tn}')
+    print(f'fp: {fp}')
+    print(f'fn: {fn}')
+    print('Most false neg line:',
+          df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'False_Negative'])
+    print("No of times: ",
+          df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'Line_No'])
 
     acc_test = (tp + tn) / (fp + fn + tp + tn)
-    print('Test Accuracy')
-    print(acc_test)
+    print('Test Accuracy:', acc_test)
+    print()
 
-    predictions_train = LSTM_model.predict(Time_series_X_train)
-
+    predictions_train = torchmodel(Time_series_X_train)
 
     predictions_train[predictions_train <= threshold_inst] = 0
     predictions_train[predictions_train > threshold_inst] = 1
@@ -279,17 +272,17 @@ for threshold_inst in threshold:
 
     pred_train = predictions_train
     total_positive_train = np.count_nonzero(Time_series_Y_train == 1)
-    total_negative_train = np.sum(Time_series_Y_train == 0)
+    total_negative_train = np.count_nonzero(Time_series_Y_train == 0)
     # pred_pos_train=np.count_nonzero(pred_train == 1)
     # pred_neg_train =np.sum(pred_train == 0)
 
     mat_1 = Time_series_Y_train + pred_train
-    tp_train = np.sum(mat_1 == 2)
-    tn_train = np.sum(mat_1 == 0)
+    tp_train = np.count_nonzero(mat_1 == 2)
+    tn_train = np.count_nonzero(mat_1 == 0)
 
     mat_2 = Time_series_Y_test - pred_t
-    fn_train = np.sum(mat_2 == 1)
-    fp_train = np.sum(mat_2 == -1)
+    fn_train = np.count_nonzero(mat_2 == 1)
+    fp_train = np.count_nonzero(mat_2 == -1)
 
     acc_train = (tp_train + tn_train) / (tp_train + tn_train + fp_train + fn_train)
 
@@ -322,7 +315,7 @@ for threshold_inst in threshold:
 
     indices = np.where(mat_2 == 1)
 
-    print(Y_percentage_test[indices])
+    print("Y_percentage_test:", Y_percentage_test[indices])
     fn_per = Y_percentage_test[indices]
 
     np.save(os.path.join(pathX, 'False_Negative.npy'), fn_per)
@@ -346,4 +339,4 @@ for threshold_inst in threshold:
     plt.savefig(os.path.join(histPath, 'Histogram_Errors.png'))
     # plt.show()
 
-print('Done...!')
+print('DONE!')
