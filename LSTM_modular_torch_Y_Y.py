@@ -29,6 +29,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Using device: ", device)
 
 """
+Code has been modularized to increase ease of architecture experimentation.
+
 Command line inputs:
 1) datapath (str) - path to directory containing all .npy data files for model
 2) modelname (str) - name of directory to store outputs in ./outputs_from_models/

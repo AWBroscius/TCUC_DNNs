@@ -122,6 +122,8 @@ optimizer = torch.optim.Adam(torchmodel.parameters(),
 torchmodel.eval()
 predictions = torchmodel(Time_series_X_test)
 
+print("Nonzero predictions: ", np.count_nonzero(predictions.detach().numpy()))
+
 
 threshold = [0.10, 0.20, 0.30, 0.33, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
 for threshold_inst in threshold:
@@ -135,10 +137,12 @@ for threshold_inst in threshold:
     os.makedirs(pathP, exist_ok=True)
 
     pred = np.copy(predictions.detach().numpy())
-    print(f"Before threshold {threshold_inst}: \n:", pred)
+    print(f"Before threshold {threshold_inst}: \n:")
+    print("\t Nonzero predictions: ", np.count_nonzero(pred))
     pred[pred <= threshold_inst] = 0
     pred[pred > threshold_inst] = 1
     print("After threshold: \n", pred)
+    print("\t Nonzero predictions: ", np.count_nonzero(pred))
 
     # pred=y_pred_r.numpy()
     # pred = pred.detach().numpy()
