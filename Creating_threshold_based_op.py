@@ -37,20 +37,13 @@ location = os.path.join(parent_dir, modelname)
 datapath = sys.argv[1]
 
 Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy')), dtype=torch.float32).to(device)
-Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')),
-                                   dtype=torch.float32).to(device)
+Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')), dtype=torch.float32).to(device)
 Time_series_X_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_test.npy')), dtype=torch.float32).to(device)
-Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(
-    device)
+Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(device)
 idx_y = np.load(os.path.join(datapath, 'y_test_idx.npy'))
 
 seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
 num_lines = Time_series_X_train.shape[2]  # number of lines in 1 sample
-
-
-# boot up model from saved training
-seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
-num_lines = Time_series_X_train.shape[2]  # number of features in 1 sample
 learning_rate = 0.001
 
 
@@ -101,6 +94,7 @@ class TorchModel(nn.Module):
 def resume(model, filename):
     checkpath = os.path.join(location, 'model', filename)
     model.load_state_dict(torch.load(checkpath, weights_only=True))
+
 
 # Instantiate the model
 torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
