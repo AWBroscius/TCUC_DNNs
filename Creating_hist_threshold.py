@@ -129,7 +129,7 @@ print("created predflat, size: ", predflat.shape)
 print("Creating histogram....")
 plt.hist(predflat)
 plt.title(f"Histogram of {modelname} predictions")
-plt.savefig('histPred.png')
+plt.savefig(os.path.join(location, f'hist_{modelname}_Predictions.png'))
 
 
 threshold = [0.10, 0.20, 0.30, 0.33, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
@@ -338,7 +338,7 @@ for threshold_inst in threshold:
     plt.title(f"Histogram Threshold {threshold_inst} False Negatives")
     histPath = os.path.join(pathX, 'plots_from_theshold')
     os.makedirs(histPath, exist_ok=True)
-    histFNPath = os.path.join(pathP, 'Histogram_False_Negative.png')
+    histFNPath = os.path.join(pathP, f'Histogram_{threshold_inst}_False_Negative.png')
     plt.savefig(histFNPath)
     # plt.show()
 
@@ -348,7 +348,7 @@ for threshold_inst in threshold:
     figure(2)
     plt.hist(fp_per)
     plt.title(f"Histogram Threshold {threshold_inst} False Positives")
-    histFPPath = os.path.join(pathP, 'Histogram_False_Positive.png')
+    histFPPath = os.path.join(pathP, f'Histogram_{threshold_inst}_False_Positive.png')
     plt.savefig(histFPPath)
     # plt.show()
 
@@ -356,7 +356,7 @@ for threshold_inst in threshold:
     figure(3)
     plt.hist(Errors_true_false)
     plt.title(f"Histogram Threshold {threshold_inst} Errors")
-    plt.savefig(os.path.join(pathP, 'Histogram_Errors.png'))
+    plt.savefig(os.path.join(pathP, f'Histogram_{threshold_inst}_Errors.png'))
     # plt.show()
 
 print('DONE!')
