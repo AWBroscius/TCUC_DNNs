@@ -8,14 +8,19 @@ Modified on Mon Sept 9 by awb9691
 import os
 import torch
 import sys
+import time
 from torch import nn
 from torch.autograd import Variable
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
-
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from trainingFuncs import *
+from modelArchitecture import TorchModel
 print("successful import!")
+
 
 # Check for GPU architecture/compatibility
 print("CUDA version:", torch.version.cuda)
@@ -23,117 +28,102 @@ print("GPU available? (pytorch):", torch.cuda.is_available())
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("Using device: ", device)
 
+"""
+Command line inputs:
+1) datapath (str) - path to directory containing all .npy data files for model
+2) modelname (str) - name of directory to store outputs in ./outputs_from_models/
+3) num_epochs (int) - the number of epochs to train for
+4) resume_name (str) - the filename to resume from in /outputs_from_models/<modelname>/model/
+5) resume_num (int) - epoch number that (4) is picking up from 
+"""
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%% DATA PREPARATION %%%%%%%%%%%%%%%%%%%%%%%%
 # Load in data
-Time_series_X_train = torch.tensor(np.load(r'T_s_X_train.npy'), dtype=torch.float32).to(device)
-Time_series_Y_train = torch.tensor(np.load(r'T_s_Y_train_flattened.npy'), dtype=torch.float32).to(device)
-Time_series_X_test = torch.tensor(np.load(r'T_s_X_test.npy'), dtype=torch.float32).to(device)
-Time_series_Y_test = torch.tensor(np.load(r'T_s_Y_test_flattened.npy'), dtype=torch.float32).to(device)
+datapath = sys.argv[1]
 
+Time_series_X_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_train.npy')), dtype=torch.float32).to(device)
+Time_series_Y_train = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy')),
+                                   dtype=torch.float32).to(device)
+Time_series_X_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_X_test.npy')), dtype=torch.float32).to(device)
+Time_series_Y_test = torch.tensor(np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy')), dtype=torch.float32).to(
+    device)
 
 # Check data shape
-print("x train shape:")
-print(Time_series_X_train.shape)
-print("y train shape:")
-print(Time_series_Y_train.shape)
+print("x train shape:", Time_series_X_train.shape)
+print("y train shape:", Time_series_Y_train.shape)
+
+# Convert to pytorch Datasets
+training_data = LinesDataset(
+    xdata=Time_series_X_train,
+    ydata=Time_series_Y_train)
+
+testing_data = LinesDataset(
+    xdata=Time_series_X_test,
+    ydata=Time_series_Y_test)
+
+# Create DataLoaders to batch data
+train_dataloader = DataLoader(training_data, batch_size=200, shuffle=True)
+test_dataloader = DataLoader(testing_data, batch_size=200, shuffle=True)
 
 
 # Create File System for saving output
-# Parent Directories
-root = "."
-parent_dir = "outputs_from_models"
-path = os.path.join(root, parent_dir)
-directory = sys.argv[1]   # name of trial run
-path = os.path.join(path, directory)
-Path(path).mkdir(parents=True, exist_ok=True)
-print("Directory '% s' created" % directory)
+modelname = sys.argv[2]  # name of trial run
+path, pathT, pathM, pathP = createFiletree(modelname)
 
-# Leaf directories
-pathT = os.path.join(path, 'testing_data')
-Path(pathT).mkdir(parents=True, exist_ok=True)
-pathM = os.path.join(path, 'model')
-Path(pathM).mkdir(parents=True, exist_ok=True)
-pathP = os.path.join(path, 'plots')
-Path(pathP).mkdir(parents=True, exist_ok=True)
+# %%%%%%%%%%%%%%%%%%%%%%%% DEFINE THE MODEL %%%%%%%%%%%%%%%%%%%%%%%
+# 1 sample = num timestamps x num lines
+seq_len = Time_series_X_train.shape[1]  # num timestamps in 1 sample
+num_lines = Time_series_X_train.shape[2]  # num lines in 1 sample
+num_epochs = int(sys.argv[3])
+learning_rate = 0.0001  # changed from 2 to 3 zeroes
 
-
-# Create a class for model structure in torch
-class TorchModel(nn.Module):
-    def __init__(self, seq_len, input_size, num_layers):
-        super(TorchModel, self).__init__()
-        self.input_size = input_size
-        self.seq_length = seq_len
-        self.num_layers = num_layers
-
-        self.lstm_1 = nn.LSTM(input_size=input_size, hidden_size=1000, batch_first=True)
-        self.lstm_2 = nn.LSTM(input_size=1000, hidden_size=500, batch_first=True)
-        self.fc_1 = nn.Linear(500, 3000)
-        self.fc_2 = nn.Linear(3000, 1000)
-        self.fc_3 = nn.Linear(1000, 3000)
-        self.op_layer = nn.Linear(3000, 2880)
-
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        h_0 = Variable(torch.zeros(self.num_layers, x.shape[0], 1000)).to(device)  # hidden state
-        c_0 = Variable(torch.zeros(self.num_layers, x.shape[0], 1000)).to(device)  # internal state
-        h_1 = Variable(torch.zeros(self.num_layers, x.shape[0], 500)).to(device)  # hidden state
-        c_1 = Variable(torch.zeros(self.num_layers, x.shape[0], 500)).to(device)  # internal state
-
-        # Propagate input through LSTM
-        output, (hn, cn) = self.lstm_1(x)  # first lstm layer
-        output = self.sigmoid(output)
-        # hn = hn.view(-1, 500)
-        out, (hn, cn) = self.lstm_2(output)  # second lstm layer
-        out = self.tanh(out)
-        hn = hn.view(-1, 500)
-        out = self.relu(hn)
-        out = self.fc_1(out)  # first fc layer
-        out = self.relu(out)
-        out = self.fc_2(out)  # second fc layer
-        out = self.relu(out)
-        out = self.fc_3(out)  # third fc layer
-        out = self.relu(out)
-        out = self.op_layer(out)  # O/P layer
-        out = self.sigmoid(out)
-
-        return out
-
-
-# Define model hyperparameters
-seq_len = Time_series_X_train.shape[1]  # number of timestamps in 1 sample
-input_size = Time_series_X_train.shape[2]  # number of features in 1 sample
-# 1 sample = num timestamps x num features(power lines)
-num_epochs = 4
-learning_rate = 0.001
 
 # Instantiate the model
-torchmodel = TorchModel(input_size=input_size, seq_len=seq_len, num_layers=1)
+torchmodel = TorchModel(num_lines=num_lines, seq_len=seq_len, num_layers=1)
 torchmodel.to(device)
 print(torchmodel)
+
+# Resume from checkpoint, if given
+if len(sys.argv) > 4:
+    print("Resuming training from: ", sys.argv[4])
+
+    # load weights
+    cur_epoch = int(sys.argv[5])
+    print("The current epoch is: ", cur_epoch)
+    num_epochs = num_epochs - cur_epoch  # adjust epoch number to avoid file overwrites
+    resume(torchmodel, pathM, sys.argv[4])
+
+    # load loss history
+    train_loss_hist = np.load(os.path.join(pathM, f'loss_hist_train_epoch_{int(cur_epoch)}.npy')).tolist()
+    test_loss_hist = np.load(os.path.join(pathM, f'loss_hist_test_epoch_{int(cur_epoch)}.npy')).tolist()
+else:  # start fresh training
+    cur_epoch = 0
+    train_loss_hist = []
+    test_loss_hist = []
+
 
 # Define the loss function and optimizer
 criterion = torch.nn.MSELoss()  # mean squared error
 optimizer = torch.optim.Adam(torchmodel.parameters(),
                              lr=learning_rate,
                              betas=(0.9, 0.99),
-                             eps=1e-07,
-                             )
+                             eps=1e-07)
 
-# Training!!
-train_loss_hist = []
-test_loss_hist = []
-predictions = 0
+# %%%%%%%%%%%%%%%%%% TRAINING!! %%%%%%%%%%%%%%%%%%%%%%%
+epoch_times = []
 for epoch in range(num_epochs):
+    t0 = time.perf_counter() # start timer
+
+    # get next data batch
+    batch_data, batch_labels = next(iter(train_dataloader))
+
     # Train on the Training Set:
     torchmodel.train()
-    outputs = torchmodel.forward(Time_series_X_train)  # forward pass
+    outputs = torchmodel.forward(batch_data)  # forward pass
     optimizer.zero_grad()  # calculate the gradient
 
     # Loss Function
-    loss = criterion(outputs, Time_series_Y_train)
+    loss = criterion(outputs, batch_labels)
     loss.backward()
     train_loss_hist.append(loss.item())  # track loss history
     optimizer.step()  # backpropagation
@@ -144,31 +134,64 @@ for epoch in range(num_epochs):
         pred = torchmodel(Time_series_X_test)
         test_loss = criterion(pred, Time_series_Y_test).item()
         test_loss_hist.append(test_loss)
-        if (epoch + 1) == num_epochs:  # on last training epoch
-            # save testing predictions
-            predictions = pred
 
-    print("Epoch: %d, Train loss: %1.5f" % (epoch, loss.item()))
+    # Calculate epoch time
+    t1 = time.perf_counter()
+    elapsed_time = t1 - t0
+    elapsed_min = elapsed_time / 60
+    epoch_times.append(elapsed_time)
+
+    # Print epoch results
+    print("Epoch: %d" % epoch)
+    print("\t Train loss: %1.5f" % loss.item())
     print("\t Test loss: %1.5f" % test_loss)
+    print(f"\t Elapsed time: {elapsed_time:0.4f} seconds")
+    print(f"\t \t ~= {elapsed_min} min")
+
+    # Save Checkpoint
+    if (epoch % 2 == 0) or (epoch == num_epochs):  # every other epoch, and final
+        # save weights
+        checkpoint(torchmodel, pathM, f"epoch-{int(epoch + cur_epoch)}.pth")
+
+        # save loss history
+        np.save(os.path.join(pathM, f'loss_hist_train_epoch_{int(epoch + cur_epoch)}.npy'),
+                train_loss_hist, allow_pickle=True)
+        np.save(os.path.join(pathM, f'loss_hist_test_epoch_{int(epoch + cur_epoch)}.npy'),
+                test_loss_hist, allow_pickle=True)
+
+
+# %%%%%%%%%%%%%%%%%%%% RESULTS REPORTING %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # Saving model
-torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % num_epochs)))
+final_epoch = int(num_epochs) + int(cur_epoch)
+torch.save(torchmodel.state_dict(), os.path.join(pathM, ('Torch_LSTM_%d_epochs.pt' % final_epoch)))
 np.save(os.path.join(pathM, 'train_history_LSTM_model.npy'), train_loss_hist, allow_pickle=True)
+
+
+# Report average time
+avg_time = sum(epoch_times) / len(epoch_times)
+print(f"Average time per epoch: {avg_time:0.4f} seconds")
+
 
 # Plot the Loss History
 plt.plot(train_loss_hist)
 plt.plot(test_loss_hist)
-plt.title('model loss')
+plt.title(f'{modelname} model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.savefig(os.path.join(pathP, 'loss_history.png'))
 
+
 # Apply filtering to predictions
+torchmodel.eval()
+predictions = torchmodel(Time_series_X_test)
 predictions[predictions <= 0.3333] = 0
 predictions[predictions > 0.3333] = 1
-pred = predictions
-idx_y = np.load('y_test_idx.npy')  # day and hour indices
+pred = np.copy(predictions.detach().numpy())
+np.save(os.path.join(path, 'output.npy'), pred)
+
+idx_y = np.load(os.path.join(datapath, 'y_test_idx.npy'))  # day and hour indices
 df = pd.DataFrame(pred)
 df.insert(loc=0, column='day', value=idx_y[:, 0])
 
@@ -192,7 +215,7 @@ for i in range(1, len(pred_0_hr)):
                 new_temp.append(temp_np[count_reshape_r, 0])
 
                 for count_reshape_c in range(1, temp_np.shape[1]):
-                    if ((count_reshape_c) % 120) == 0:
+                    if ((count_reshape_c) % num_lines) == 0:
                         new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                         new_temp_1.append(new_temp)
                         new_temp = []
@@ -214,7 +237,7 @@ for i in range(1, len(pred_0_hr)):
             new_temp.append(temp_np[count_reshape_r, 0])
 
             for count_reshape_c in range(1, temp_np.shape[1]):
-                if ((count_reshape_c) % 120) == 0:
+                if ((count_reshape_c) % num_lines) == 0:
                     new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                     new_temp_1.append(new_temp)
                     new_temp = []
@@ -231,7 +254,6 @@ for i in range(1, len(pred_0_hr)):
         counter_op = counter_op + 1
 
 pred_t = pred
-np.save(os.path.join(path, 'output.npy'), pred_t)
 
 Time_series_Y_test[Time_series_Y_test <= 0.33] = 0
 Time_series_Y_test[Time_series_Y_test > 0.33] = 1
@@ -269,11 +291,11 @@ df_cm.rename(columns={0: 'True_Positive'}, inplace='True')
 df_cm.insert(loc=1, column='True_Negative', value=tn_arr)
 df_cm.insert(loc=2, column='False_Positive', value=fp_arr)
 df_cm.insert(loc=3, column='False_Negative', value=fn_arr)
-lines = np.linspace(1, 120, num=120)
+lines = np.linspace(1, num_lines, num=num_lines)
 lines_arr = np.tile(lines, 24)
 df_cm.insert(loc=0, column='Line_No', value=lines_arr)
 hour = np.linspace(1, 24, num=24)
-hour_arr = np.repeat(hour, 120)
+hour_arr = np.repeat(hour, num_lines)
 df_cm.insert(loc=1, column='Hour', value=hour_arr)
 file_name = os.path.join(path, 'confusion_matrix.csv')
 df_cm.to_csv(file_name)
@@ -292,16 +314,16 @@ print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'False_Negative'])
 print("No of times")
 print(df_false_neg.loc[df_false_neg.False_Negative.idxmax(), 'Line_No'])
 
-Y_percentage_test = np.load('T_s_Y_test_flattened.npy')
+Y_percentage_test = np.load(os.path.join(datapath, 'T_s_Y_test_flattened.npy'))
 
 indices = np.where(mat_2 == 1)
 
 print(Y_percentage_test[indices])
 fn_per = Y_percentage_test[indices]
 
-np.save(os.path.join(path,'False_Negative.npy'), fn_per)
+np.save(os.path.join(path, 'False_Negative.npy'), fn_per)
 plt.hist(fn_per)
-plt.savefig(os.path.join(pathP,'Histogram_False_Negative.png'))
+plt.savefig(os.path.join(pathP, 'Histogram_False_Negative.png'))
 
 indices = np.where(mat_2 == -1)
 fp_per = Y_percentage_test[indices]
@@ -311,6 +333,6 @@ plt.savefig(os.path.join(pathP, 'Histogram_False_Positive.png'))
 
 Errors_true_false = np.append(fn_per, fp_per)
 plt.hist(Errors_true_false)
-plt.savefig(os.path.join(pathP,'Histogram_Errors.png'))
+plt.savefig(os.path.join(pathP, 'Histogram_Errors.png'))
 
 print('Everything worked!!!')
