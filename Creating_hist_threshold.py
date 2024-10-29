@@ -320,7 +320,7 @@ for threshold_inst in threshold:
 
     '''text_kwargs = dict(ha='center', va='center', fontsize=18, color='C1')
     s_test='Test Accuracy' +' ' + str(acc_test)
-    plt.figure(figsize=(10, 2))
+    plt.plt.figure(figsize=(10, 2))
     plt.text(0.5, 0.5, s_test, **text_kwargs)
     plt.savefig(path+'\\Plots'+'\\Acc.png')
     plt.show()'''
@@ -333,7 +333,7 @@ for threshold_inst in threshold:
     fn_per = Y_percentage_test[indices]
 
     np.save(os.path.join(pathX, 'False_Negative.npy'), fn_per)
-    figure(1)
+    plt.figure(1)
     plt.hist(fn_per)
     plt.title(f"Histogram Threshold {threshold_inst} False Negatives")
     histPath = os.path.join(pathX, 'plots_from_theshold')
@@ -345,7 +345,7 @@ for threshold_inst in threshold:
     indices = np.where(mat_2 == -1)
     fp_per = Y_percentage_test[indices]
     np.save(os.path.join(pathX, 'False_Positive.npy'), fp_per)
-    figure(2)
+    plt.figure(2)
     plt.hist(fp_per)
     plt.title(f"Histogram Threshold {threshold_inst} False Positives")
     histFPPath = os.path.join(pathP, f'Histogram_{threshold_inst}_False_Positive.png')
@@ -353,7 +353,7 @@ for threshold_inst in threshold:
     # plt.show()
 
     Errors_true_false = np.append(fn_per, fp_per)
-    figure(3)
+    plt.figure(3)
     plt.hist(Errors_true_false)
     plt.title(f"Histogram Threshold {threshold_inst} Errors")
     plt.savefig(os.path.join(pathP, f'Histogram_{threshold_inst}_Errors.png'))
