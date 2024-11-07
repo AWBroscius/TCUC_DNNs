@@ -353,7 +353,7 @@ for threshold_inst in threshold:
     plt.title(f"Histogram Threshold {threshold_inst} False Positives")
     histFPPath = os.path.join(pathP, f'Histogram_{threshold_inst}_False_Positive.png')
     plt.savefig(histFPPath)
-    print(f"Saved to {histFPPPath}!")
+    print(f"Saved to {histFPPath}!")
     # plt.show()
 
     Errors_true_false = np.append(fn_per, fp_per)
