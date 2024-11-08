@@ -149,7 +149,7 @@ for epoch in range(num_epochs):
     print(f"\t \t ~= {elapsed_min} min")
 
     # Save Checkpoint
-    if (epoch % 2 == 0) or (epoch == num_epochs):  # every other epoch, and final
+    if (epoch % 10 == 0) or (epoch == num_epochs):  # every 10th epoch, and final
         # save weights
         checkpoint(torchmodel, pathM, f"epoch-{int(epoch + cur_epoch)}.pth")
 
