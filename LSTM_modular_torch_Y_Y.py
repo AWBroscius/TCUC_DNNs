@@ -322,16 +322,19 @@ print(Y_percentage_test[indices])
 fn_per = Y_percentage_test[indices]
 
 np.save(os.path.join(path, 'False_Negative.npy'), fn_per)
+plt.figure(2)
 plt.hist(fn_per)
 plt.savefig(os.path.join(pathP, 'Histogram_False_Negative.png'))
 
 indices = np.where(mat_2 == -1)
 fp_per = Y_percentage_test[indices]
 np.save(os.path.join(path, 'False_Positive.npy'), fp_per)
+plt.figure(3)
 plt.hist(fp_per)
 plt.savefig(os.path.join(pathP, 'Histogram_False_Positive.png'))
 
 Errors_true_false = np.append(fn_per, fp_per)
+plt.figure(4)
 plt.hist(Errors_true_false)
 plt.savefig(os.path.join(pathP, 'Histogram_Errors.png'))
 
