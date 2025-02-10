@@ -21,16 +21,33 @@ from sklearn.preprocessing import OrdinalEncoder
 import pandas as pd 
 import tensorflow as tf
 from pathlib import Path
+import os
 print(tf.__version__)
+
+
+"""
+Command line inputs:
+1) datapath (str) - path to directory containing all .npy data files for model
+2) modelname (str) - name of directory to store outputs in ./outputs_from_models/
+3) learning rate (float) - the learning rate for the gradient descent algorithm
+"""
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 #Loading data
-Time_series_X_train = np.load(r'T_s_X_train.npy')
-Time_series_Y_train = np.load(r'T_s_Y_train_flattened.npy')
-Time_series_X_test = np.load(r'T_s_X_test.npy')
-Time_series_Y_test = np.load(r'T_s_Y_test_flattened.npy')
+# Loading data
+datapath = sys.argv[1]
 
+Time_series_X_train = np.load(os.path.join(datapath, r'T_s_X_train.npy'))
+Time_series_Y_train = np.load(os.path.join(datapath, r'T_s_Y_train_flattened.npy'))
+Time_series_X_test = np.load(os.path.join(datapath, r'T_s_X_test.npy'))
+Time_series_Y_test = np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy'))
+
+
+print('Train X shape =', Time_series_X_train.shape)
+print('Train Y shape =', Time_series_Y_train.shape)
+print('Test X shape =', Time_series_X_test.shape)
+print('Test Y shape =', Time_series_Y_test.shape)
 
 def my_metric_fn(y_true, y_pred):
     y_pred = tf.convert_to_tensor(y_pred)
@@ -45,16 +62,13 @@ def my_metric_fn(y_true, y_pred):
 '''Time_series_X_train =np.sin(Time_series_X_train )
 Time_series_X_test=np.sin(Time_series_X_test)'''
 
-#Creating folder for o/p 
-# importing os module  
-import os     
 # Create File System for saving output
 # Parent Directories
 root = "."
 parent_dir = "outputs_from_models"
 path = os.path.join(root, parent_dir)
-directory = sys.argv[1]  # name of trial run
-print("MODEL NAME: ", sys.argv[1])
+directory = sys.argv[2]  # name of trial run
+print("MODEL NAME: ", sys.argv[2])
 path = os.path.join(path, directory)
 Path(path).mkdir(parents=True, exist_ok=True)
 print("Directory '% s' created" % directory)
@@ -68,9 +82,14 @@ pathP = os.path.join(path, 'plots')
 Path(pathP).mkdir(parents=True, exist_ok=True)
 
 
+# 1 sample = num timestamps x num lines
+seq_len = Time_series_X_train.shape[1]  # num timestamps in 1 sample
+num_lines = Time_series_X_train.shape[2]  # num lines in 1 sample
+
+
 LSTM_model = Sequential()
-LSTM_model.add(LSTM(1000, activation='sigmoid',return_sequences=True, input_shape=(192, 120)))
-LSTM_model.add(LSTM(500, activation='tanh',return_sequences=False, input_shape=(192, 120)))
+LSTM_model.add(LSTM(1000, activation='sigmoid',return_sequences=True, input_shape=(seq_len, num_lines)))
+LSTM_model.add(LSTM(500, activation='tanh',return_sequences=False, input_shape=(seq_len, num_lines)))
 LSTM_model.add(Dense(3000, activation='relu'))
 #LSTM_model.add(BatchNormalization())
 #LSTM_model.add(Dropout(0.1))
@@ -80,9 +99,11 @@ LSTM_model.add(Dense(1000, activation='relu'))
 LSTM_model.add(Dense(3000, activation='relu'))
 #LSTM_model.add(BatchNormalization())
 #LSTM_model.add(Dropout(0.1))
-LSTM_model.add(Dense(2880, activation='sigmoid'))
+LSTM_model.add(Dense(24*num_lines, activation='sigmoid'))
 #opt = keras.optimizers.Adam(learning_rate=0.1e-8,decay=0.8)
-opt = keras.optimizers.Adam(learning_rate=0.001,
+
+print("Learning rate: ", sys.argv[3])
+opt = keras.optimizers.Adam(learning_rate=float(sys.argv[3]),
                             beta_1=0.9,
                             beta_2=0.99,
                             epsilon=1e-07,
@@ -99,9 +120,9 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpath,
                                                  save_weights_only=False,
                                                  verbose=1, save_freq=25)
 
-print("NUM EPOCHS: ", sys.argv[2])
+print("NUM EPOCHS: 1")
 history=LSTM_model.fit(Time_series_X_train, Time_series_Y_train,
-                       epochs=int(sys.argv[2]),
+                       epochs=100,
                        batch_size=200,
                        validation_data=(Time_series_X_test,Time_series_Y_test),
                        callbacks=[cp_callback])#
@@ -134,7 +155,7 @@ predictions[predictions<=0.3333]=0
 predictions[predictions > 0.3333]=1
 pred=predictions
 #pred=y_pred_r.numpy()
-idx_y=np.load('y_test_idx.npy')
+idx_y=np.load(os.path.join(datapath,'y_test_idx.npy'))
 df=pd.DataFrame(pred)
 df.insert(loc=0,column='day',value=idx_y[:,0])
 #df.insert(loc=1,column='hour',value=idx_y[:,1])

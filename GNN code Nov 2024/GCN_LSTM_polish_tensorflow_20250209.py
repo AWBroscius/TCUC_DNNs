@@ -37,17 +37,13 @@ Time_series_X_test = np.load(os.path.join(datapath, r'T_s_X_test.npy'))
 Time_series_Y_test = np.load(os.path.join(datapath, r'T_s_Y_test_flattened.npy'))
 
 
-Time_series_X_train = np.load(r'T_s_X_train.npy')
 print('Train X shape =', Time_series_X_train.shape)
-Time_series_Y_train = np.load(r'T_s_Y_train_flattened.npy')
 print('Train Y shape =', Time_series_Y_train.shape)
-Time_series_X_test = np.load(r'T_s_X_test.npy')
 print('Test X shape =', Time_series_X_test.shape)
-Time_series_Y_test = np.load(r'T_s_Y_test_flattened.npy')
 print('Test Y shape =', Time_series_Y_test.shape)
 # y_norm = np.load('adj_matrix_with_identity.npy')
 # adj_matrix = np.load('adj_matrix.npy')
-normalized_adj = np.load('normalized_adj_matrix.npy')
+normalized_adj = np.load(os.path.join(datapath,'normalized_adj_matrix.npy'))
 print('Adjacency matrix shape =', normalized_adj.shape)
 
 
