@@ -26,6 +26,12 @@ print(tf.__version__)
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 # In[2]:
+"""
+Command line inputs:
+1) datapath (str) - path to directory containing all .npy data files for model
+2) modelname (str) - name of directory to store outputs in ./outputs_from_models/
+3) learning rate (float) - the learning rate for the gradient descent algorithm
+"""
 
 
 # Loading data
@@ -52,8 +58,8 @@ print('Adjacency matrix shape =', normalized_adj.shape)
 root = "."
 parent_dir = "outputs_from_models"
 path = os.path.join(root, parent_dir)
-directory = sys.argv[1]  # name of trial run
-print("MODEL NAME: ", sys.argv[1])
+directory = sys.argv[2]  # name of trial run
+print("MODEL NAME: ", sys.argv[2])
 path = os.path.join(path, directory)
 Path(path).mkdir(parents=True, exist_ok=True)
 print("Directory '% s' created" % directory)
@@ -87,10 +93,10 @@ class MyGCNLayer(Layer):
         self.hidden_units = hidden_units
         self.activation = tf.keras.activations.get(activation)  # activation function
         self.transform = Dense(hidden_units)  # passing (input . adjacency) through a fully connected layer
-        # number of hidden units = 120 (Must be equal to number of features (lines))
+        # number of hidden units = num_lines (Must be equal to number of features (lines))
 
     def call(self, inputs):
-        input_layer = tf.cast(inputs, tf.float32)  # input layer of shape (192, 120)
+        input_layer = tf.cast(inputs, tf.float32)  # input layer of shape (192, num_lines)
         adjacency = tf.cast(self.adjacency, tf.float32)  # normalized adjacency matrix
         dot_product = K.dot(input_layer, adjacency)  # Dot product of (input . adjacency)
 
@@ -102,12 +108,16 @@ class MyGCNLayer(Layer):
     # In[9]:
 
 
+seq_len = Time_series_X_train.shape[1]  # num timestamps in 1 sample
+num_lines = Time_series_X_train.shape[2]  # num lines in 1 sample
+
+
 LSTM_model = Sequential()
 
-LSTM_model.add(MyGCNLayer(input_shape=(192, 120), adjacency=normalized_adj, hidden_units=120, activation='relu'))
+LSTM_model.add(MyGCNLayer(input_shape=(seq_len, num_lines), adjacency=normalized_adj, hidden_units=num_lines, activation='relu'))
 
-# LSTM_model.add(LSTM(1000, activation='sigmoid',return_sequences=True, input_shape=(192, 120)))
-# LSTM_model.add(LSTM(500, activation='tanh',return_sequences=False, input_shape=(192, 120)))
+# LSTM_model.add(LSTM(1000, activation='sigmoid',return_sequences=True, input_shape=(192, num_lines)))
+# LSTM_model.add(LSTM(500, activation='tanh',return_sequences=False, input_shape=(192, num_lines)))
 
 LSTM_model.add(LSTM(1000, activation='sigmoid', return_sequences=True))
 LSTM_model.add(LSTM(500, activation='tanh', return_sequences=False))
@@ -115,12 +125,12 @@ LSTM_model.add(LSTM(500, activation='tanh', return_sequences=False))
 LSTM_model.add(Dense(3000, activation='relu'))
 LSTM_model.add(Dense(1000, activation='relu'))
 LSTM_model.add(Dense(3000, activation='relu'))
-LSTM_model.add(Dense(2880, activation='sigmoid'))
+LSTM_model.add(Dense(24*num_lines, activation='sigmoid'))
 
 # In[10]:
 
-print("Learning rate: ", sys.argv[2])
-opt = keras.optimizers.Adam(learning_rate=float(sys.argv[2]),
+print("Learning rate: ", sys.argv[3])
+opt = keras.optimizers.Adam(learning_rate=float(sys.argv[3]),
                             beta_1=0.9,
                             beta_2=0.99,
                             epsilon=1e-07,
@@ -204,7 +214,7 @@ for i in range(1, len(pred_0_hr)):
                 new_temp.append(temp_np[count_reshape_r, 0])
 
                 for count_reshape_c in range(1, temp_np.shape[1]):
-                    if ((count_reshape_c) % 120) == 0:
+                    if ((count_reshape_c) % num_lines) == 0:
                         new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                         new_temp_1.append(new_temp)
                         new_temp = []
@@ -227,7 +237,7 @@ for i in range(1, len(pred_0_hr)):
             new_temp.append(temp_np[count_reshape_r, 0])
 
             for count_reshape_c in range(1, temp_np.shape[1]):
-                if ((count_reshape_c) % 120) == 0:
+                if ((count_reshape_c) % num_lines) == 0:
                     new_temp.append(temp_np[count_reshape_r, count_reshape_c])
                     new_temp_1.append(new_temp)
                     new_temp = []
@@ -291,11 +301,11 @@ df_cm.rename(columns={0: 'True_Positive'}, inplace='True')
 df_cm.insert(loc=1, column='True_Negative', value=tn_arr)
 df_cm.insert(loc=2, column='False_Positive', value=fp_arr)
 df_cm.insert(loc=3, column='False_Negative', value=fn_arr)
-lines = np.linspace(1, 120, num=120)
+lines = np.linspace(1, num_lines, num=num_lines)
 lines_arr = np.tile(lines, 24)
 df_cm.insert(loc=0, column='Line_No', value=lines_arr)
 hour = np.linspace(1, 24, num=24)
-hour_arr = np.repeat(hour, 120)
+hour_arr = np.repeat(hour, num_lines)
 df_cm.insert(loc=1, column='Hour', value=hour_arr)
 file_name = os.path.join(path, "confusion_matrix.csv")
 # file_name=location+'\confusion_matrix.xlsx'
